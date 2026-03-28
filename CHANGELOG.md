@@ -2,7 +2,7 @@
 
 All notable changes to the Absolute AdBlocker extension will be documented in this file.
 
-## [1.4.0] - 2026-03-29
+## [1.3.1] - 2026-03-29
 ### Added
 - Tính năng AI-smart Metadata cho Bảng Xoá quảng cáo thủ công: tự động phân tích và dịch danh tính nội dung (Hình ảnh, Video, Trích xuất văn bản) trước khi ẩn.
 - Hiệu ứng Tan Biến như môi trường iOS 18 (Cubic-bezier shrink & blur fade out) khi người dùng tác động xóa/khôi phục quảng cáo trực tiếp trên trang.

@@ -2,7 +2,7 @@
 
 > Chrome Extension (Manifest V3) — Chặn quảng cáo thông minh trên Facebook và YouTube với chế độ Stealth Mode.
 
-![Version](https://img.shields.io/badge/version-1.4%20Smart%20UI-blue)
+![Version](https://img.shields.io/badge/version-1.3.1%20Smart%20UI-blue)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
