@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --primary-light: rgba(79, 70, 229, 0.1);
+            --success: #10b981;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --bg-body: #f1f5f9;
+            --bg-glass: rgba(255, 255, 255, 0.75);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-glass: rgba(255, 255, 255, 0.5);
+            --border-light: rgba(15, 23, 42, 0.05);
+            --radius-xl: 20px;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --shadow-float: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html {
+            /* Ngăn html root tạo thêm scrollbar */
+            overflow: hidden;
+        }
+
+        body {
+            width: 480px;
+            height: 580px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* =====================================================
+         * TAB PAGES PATTERN (Chuẩn, không overflow)
+         * 
+         * - .view-container là clip boundary, không có chiều cao cứng.
+         * - Mỗi .view là position:absolute, ẩn đi, không chiếm layout.
+         * - .view.active là position:relative, hiện ra, đẩy container lên.
+         * ===================================================== */
+        .view-container {
+            position: relative;
+            height: 580px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        }
+
+        .view {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            /* Mặc định: ẩn hoàn toàn, không chiếm layout space */
+            position: absolute;
+            top: 0; left: 0;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        /* View đang active: hiện ra */
+        .view.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateX(0);
+        }
+
+        /* Tách biệt phần Header cố định và phần Nội dung cuộn */
+        .fixed-header {
+            flex: 0 0 auto;
+            padding: 20px 24px 0 24px;
+            z-index: 5;
+        }
+
+        .scroll-area {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            padding: 0 24px 24px 24px;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        .scroll-area::-webkit-scrollbar { width: 4px; }
+        .scroll-area::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+
+        /* Gear Button */
+        .settings-btn {
+            position: absolute; top: 20px; right: 20px;
+            width: 32px; height: 32px;
+            background: rgba(255,255,255,0.6); border: 1px solid var(--border-glass); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            color: var(--text-muted); transition: var(--transition); z-index: 10;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        }
+        .settings-btn:hover { background: white; color: var(--text-main); transform: rotate(90deg); }
+        .settings-btn svg { width: 16px; height: 16px; }
+
+        /* Back Button */
+        .back-btn {
+            display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+            color: var(--text-muted); cursor: pointer; margin-bottom: 16px; transition: var(--transition);
+            border: none; background: none; font-family: 'Inter', sans-serif; padding: 0;
+        }
+        .back-btn:hover { color: var(--text-main); transform: translateX(-3px); }
+        .back-btn svg { width: 16px; height: 16px; stroke-width: 2.5px; }
+        .advanced-title { font-size: 15px; font-weight: 800; color: var(--text-main); margin-bottom: 16px; letter-spacing: -0.5px; }
+
+        /* --- GLASSMORPHISM COMPONENTS --- */
+        .glass-panel {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-float);
+        }
+
+        input[type="checkbox"] { display: none; }
+
+        /* --- HERO SECTION --- */
+        .hero {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 8px 0; margin-bottom: 12px;
+            position: relative;
+        }
+        .shield-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 16px rgba(99, 102, 241, 0.3);
+            margin-bottom: 8px;
+            animation: float 3s ease-in-out infinite;
+        }
+        .shield-icon svg { width: 18px; height: 18px; color: white; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-4px); }
+        }
+
+        .hero-title {
+            font-size: 11px; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 0px;
+        }
+
+        .hero-count {
+            font-size: 38px; font-weight: 800; line-height: 1;
+            background: linear-gradient(135deg, #1e293b, #475569);
+            background-clip: text;
+            -webkit-background-clip: text; color: transparent;
+            letter-spacing: -2px; margin-bottom: 2px;
+            padding: 0 4px;
+        }
+        .hero-subtitle { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+        /* --- MAIN STATUS CARD --- */
+        .master-card {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px; margin-bottom: 0px;
+        }
+        .domain-wrap { display: flex; flex-direction: column; gap: 3px; }
+        .domain-wrap span { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .domain-wrap b { font-size: 14px; font-weight: 700; color: var(--text-main); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* --- MODERN TOGGLE --- */
+        .modern-toggle {
+            position: relative; width: 52px; height: 30px;
+            background: #cbd5e1; border-radius: 30px; cursor: pointer;
+            transition: var(--transition); border: none; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .modern-toggle.active { background: var(--success); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .modern-toggle::after {
+            content: ''; position: absolute; top: 3px; left: 3px;
+            width: 24px; height: 24px; background: white; border-radius: 50%;
+            transition: var(--transition); box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .modern-toggle.active::after { transform: translateX(22px); }
+
+        /* --- SETTINGS LIST (IOS STYLE) --- */
+        .settings-list {
+            background: var(--bg-glass); border-radius: var(--radius-lg); margin-bottom: 12px;
+            overflow: hidden; border: 1px solid var(--border-glass); display: none;
+        }
+        .setting-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 13px 16px; border-bottom: 1px solid var(--border-light);
+            transition: background 0.2s;
+        }
+        .setting-item:last-child { border-bottom: none; }
+        .setting-item:hover { background: rgba(255,255,255,0.4); }
+        .setting-label {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 13px; font-weight: 600; color: var(--text-main);
+        }
+        .setting-icon {
+            width: 24px; height: 24px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .mini-toggle { position: relative; width: 44px; height: 24px; background: #cbd5e1; border-radius: 20px; cursor: pointer; transition: 0.3s; }
+        .mini-toggle::after {
+            content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+            background: white; border-radius: 50%; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        input:checked + .mini-toggle { background: var(--primary); }
+        input:checked + .mini-toggle::after { transform: translateX(20px); }
+
+        /* --- SCAN BUTTON --- */
+        .scan-btn {
+            width: 100%; padding: 13px; border-radius: var(--radius-lg);
+            background: var(--bg-glass); color: var(--danger); font-family: 'Inter', sans-serif;
+            font-size: 14px; font-weight: 700; cursor: pointer; transition: var(--transition);
+            display: none; align-items: center; justify-content: center; gap: 8px;
+            border: 1px solid rgba(239, 68, 68, 0.2); margin-bottom: 12px;
+        }
+        .scan-btn svg { width: 18px; height: 18px; fill: currentColor; }
+        .scan-btn:hover { background: #fee2e2; border-color: rgba(239, 68, 68, 0.4); transform: translateY(-1px); }
+        .scan-btn.active {
+            background: linear-gradient(135deg, #ef4444, #dc2626); color: white;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); border: none;
+        }
+        .scan-btn.active svg { fill: white; }
+        .scan-hint { font-size: 11px; color: var(--danger); text-align: center; margin-top: -8px; margin-bottom: 12px; font-weight: 600; display: none; }
+
+        /* ACTION CARDS */
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .action-card {
+            background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: var(--radius-md);
+            padding: 14px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;
+            cursor: pointer; transition: var(--transition); text-align: center; color: var(--text-main);
+        }
+        .action-card:hover { background: white; transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+        .action-card svg { width: 22px; height: 22px; color: var(--text-muted); }
+        .action-card span { font-size: 12px; font-weight: 600; }
+
+        /* LOG LIST */
+        .log-container {
+            padding-right: 2px;
+        }
+        .log-container::-webkit-scrollbar { width: 4px; }
+        .log-container::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+
+        .log-item { background: white; margin-bottom: 8px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; overflow: hidden; font-family: 'Inter', sans-serif; }
+        .log-item:hover { transform: translateX(2px); border-color: var(--primary); }
+        .log-item.DOM { border-left-color: #f59e0b; } .log-item.NETWORK { border-left-color: #3b82f6; } .log-item.POPUP { border-left-color: #ef4444; }
+        .log-summary { padding: 12px 16px; position: relative; }
+        .log-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .log-type { font-weight: 700; font-size: 11px; color: var(--text-main); display: flex; align-items: center; gap: 5px; }
+        .log-time { color: var(--text-muted); font-size: 10px; font-weight: 600; }
+        .log-brief { color: #475569; font-size: 12px; line-height: 1.4; padding-right: 20px; display: -webkit-box; line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .chevron { position: absolute; right: 12px; bottom: 12px; transition: transform 0.3s; opacity: 0.5; font-size: 10px; }
+        .log-item.expanded .chevron { transform: rotate(180deg); opacity: 1; }
+        .log-details { display: none; padding: 12px; background: #f8fafc; border-top: 1px solid #f1f5f9; font-size: 11.5px; color: #334155; }
+        .log-item.expanded .log-details { display: block; }
+        .log-details p { margin: 6px 0; word-break: break-word; line-height: 1.4; }
+        .log-details strong { color: var(--text-main); }
+        .log-details a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .tag { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 700; color: #475569; font-size: 10px; }
+        .post-snippet, .html-code { display: block; background: #f1f5f9; border: 1px solid #e2e8f0; padding: 10px; border-radius: 8px; margin-top: 6px; font-size: 11px; line-height: 1.6; max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; scrollbar-width: thin; }
+        .html-code { background: #1e293b; color: #38bdf8; font-family: 'Consolas', monospace; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+        .empty-state { text-align: center; padding: 30px 20px; color: var(--text-muted); }
+        .empty-state svg { width: 32px; height: 32px; margin-bottom: 12px; opacity: 0.5; }
+        .empty-state b { display: block; font-size: 14px; margin-bottom: 4px; color: var(--text-main); }
+        .empty-state p { font-size: 12px; line-height: 1.4; margin: 0; }
+    </style>
+</head>
+<body>
+    <div class="view-container">
+
+        <!-- ==================== VIEW 1: MAIN DASHBOARD ==================== -->
+        <div class="view active" id="mainView">
+
+            <div class="fixed-header">
+                <!-- Gear Icon -->
+                <button class="settings-btn" id="openSettingsBtn" title="Cài đặt & Công cụ">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </button>
+
+                <!-- HERO SECTION (Compact) -->
+                <div class="hero">
+                    <div class="shield-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </div>
+                    <div class="hero-title">Đã Tiêu Diệt</div>
+                    <div class="hero-count" id="totalCount">0</div>
+                    <div class="hero-subtitle">quảng cáo độc hại & rác</div>
+                    <div style="font-size: 10px; font-weight: 700; color: #94a3b8; background: rgba(255,255,255,0.4); padding: 2px 8px; border-radius: 10px; margin-top: 6px; border: 1px solid var(--border-light);" id="versionDisplay">v1.2 Stable</div>
+
+                    <!-- CATEGORY STATS -->
+                    <div class="stats-row" style="display: flex; gap: 10px; margin-top: 14px; background: rgba(255,255,255,0.6); padding: 8px 16px; border-radius: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); border: 1px solid var(--border-glass); backdrop-filter: blur(8px);">
+                        <div style="font-size: 11px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 4px;">DOM: <span style="color:#0f172a;" id="statDOM">0</span></div>
+                        <div style="width: 1px; background: #cbd5e1;"></div>
+                        <div style="font-size: 11px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 4px;">Mạng: <span style="color:#0f172a;" id="statNetwork">0</span></div>
+                        <div style="width: 1px; background: #cbd5e1;"></div>
+                        <div style="font-size: 11px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 4px;">Popup: <span style="color:#0f172a;" id="statPopup">0</span></div>
+                    </div>
+                </div>
+
+                <!-- MAIN CONTROL CARD -->
+                <div class="glass-panel master-card">
+                    <div class="domain-wrap">
+                        <span>Đang Bảo vệ</span>
+                        <b id="currentDomain">Đang tải...</b>
+                    </div>
+                    <button id="toggleBtn" class="modern-toggle active" title="Bật/Tắt chặn quảng cáo"></button>
+                </div>
+            </div>
+
+            <div class="scroll-area">
+                <!-- LOG LIST -->
+                <div style="margin-top: 16px;">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>Hoạt động gần đây</span>
+                        <div style="width: 6px; height: 6px; background: var(--success); border-radius: 50%; box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite;"></div>
+                    </div>
+                    <div class="log-container" id="logList">
+                        <!-- JS render -->
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.view#mainView -->
+
+        <style>
+            @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+            
+            /* Add animation class for changing numbers */
+            .number-pop {
+                animation: pop-anim 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                color: var(--primary) !important;
+            }
+            @keyframes pop-anim {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.3); }
+                100% { transform: scale(1); }
+            }
+        </style>
+
+
+        <!-- ==================== VIEW 2: DEVELOPER TOOLS ==================== -->
+        <div class="view" id="advancedView">
+
+            <div class="fixed-header">
+                <button class="back-btn" id="closeSettingsBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    Quay lại
+                </button>
+                <div class="advanced-title" style="margin-bottom: 8px;">Cài đặt & Công cụ</div>
+            </div>
+
+            <div class="scroll-area">
+                <!-- FACEBOOK SETTINGS PANEL -->
+                <div class="settings-list" id="fbSettingsPanel" style="display: block;">
+                    <label class="setting-item">
+                        <div class="setting-label">
+                            <div class="setting-icon" style="background: #fee2e2; color: #ef4444;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            </div>
+                            Chặn Quảng Cáo & Sponsored
+                        </div>
+                        <input type="checkbox" id="blockAdsCb" checked>
+                        <div class="mini-toggle"></div>
+                    </label>
+
+                    <label class="setting-item">
+                        <div class="setting-label">
+                            <div class="setting-icon" style="background: #e0e7ff; color: #4f46e5;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                            </div>
+                            Chặn Bài Gợi ý kết bạn
+                        </div>
+                        <input type="checkbox" id="blockSuggestedCb" checked>
+                        <div class="mini-toggle"></div>
+                    </label>
+
+                    <label class="setting-item">
+                        <div class="setting-label">
+                            <div class="setting-icon" style="background: #f3f4f6; color: #475569;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            </div>
+                            Chặn Trang lạ / Nhóm chưa tham gia
+                        </div>
+                        <input type="checkbox" id="blockStrangersCb" checked>
+                        <div class="mini-toggle"></div>
+                    </label>
+                </div>
+
+                <!-- MANUAL SCAN BUTTON -->
+                <button class="scan-btn" id="toggleScanBtn" style="display: flex;">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <span>Công cụ Quét HTML Thủ Công</span>
+                </button>
+                <div class="scan-hint" id="debugHint">Đang bật tâm ngắm: Click vào bài đăng Facebook để lấy mã</div>
+
+                <div class="action-grid" style="margin-top: 12px;">
+                    <div class="action-card" id="exportSysBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                        <span>System Logs</span>
+                    </div>
+                    <div class="action-card" id="exportBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Xuất JSON</span>
+                    </div>
+                </div>
+
+                <!-- PRIVACY & AUTHOR -->
+                <div style="text-align: center; margin-top: 20px; font-size: 11px; color: var(--text-muted); padding-bottom: 10px;">
+                    <div style="margin-bottom: 4px;">Phát triển bởi <b>Thi Phạm</b></div>
+                    <div style="display: flex; justify-content: center; gap: 12px;">
+                        <a href="#" style="color: var(--primary); text-decoration: none; font-weight: 600;">Chính sách bảo mật</a>
+                        <span style="color: #cbd5e1;">|</span>
+                        <a href="#" style="color: var(--primary); text-decoration: none; font-weight: 600;">Điều khoản sử dụng</a>
+                    </div>
+                </div>
+
+                <!-- CHANGELOG SECTION -->
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border-light);">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                        <div style="width: 28px; height: 28px; background: #ecfdf5; color: #10b981; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        </div>
+                        <span style="font-size: 13px; font-weight: 700; color: var(--text-main);">Tính năng mới v1.2</span>
+                    </div>
+                    <div style="background: white; border-radius: var(--radius-md); padding: 12px; font-size: 12px; line-height: 1.6; color: #475569; border: 1px solid var(--border-light);">
+                        <ul style="list-style: none;" id="changelogList">
+                            <!-- Dynamic content from CHANGELOG.md will be injected here -->
+                            <li style="text-align: center; color: var(--text-muted); font-style: italic;">Đang tải cập nhật...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.view#advancedView -->
+
+    </div><!-- /.view-container -->
+
+    <script src="popup.js"></script>
+</body>
+</html>
