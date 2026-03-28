@@ -402,12 +402,23 @@
                     </label>
                 </div>
 
-                <!-- MANUAL SCAN BUTTON -->
-                <button class="scan-btn" id="toggleScanBtn" style="display: flex;">
-                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <span>Công cụ Quét HTML Thủ Công</span>
-                </button>
-                <div class="scan-hint" id="debugHint">Đang bật tâm ngắm: Click vào bài đăng Facebook để lấy mã</div>
+                <!-- MANUAL AD SETTINGS PANEL -->
+                <div style="margin-top: 16px;">
+                    <div style="font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                            Phần tử đã xoá thủ công
+                        </span>
+                        <span id="manualBlockCount" style="background:#e2e8f0; color:#475569; font-size:11px; padding:2px 6px; border-radius:10px;">0</span>
+                    </div>
+                    
+                    <div id="manualBlockList" style="background: var(--bg-glass); border-radius: var(--radius-md); border: 1px solid var(--border-light); max-height: 150px; overflow-y: auto; padding: 4px;">
+                        <!-- JS Render -->
+                        <div style="text-align:center; color:var(--text-muted); font-size:11px; padding:12px;">Chưa xoá mục nào</div>
+                    </div>
+                </div>
+
+
 
                 <div class="action-grid" style="margin-top: 12px;">
                     <div class="action-card" id="exportSysBtn">

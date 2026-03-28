@@ -344,6 +344,250 @@ class GenericScanner {
 }
 
 // ==========================================
+// 5. MANUAL BLOCKER: Chặn quảng cáo thủ công
+// ==========================================
+class ManualBlocker {
+    static isSelectionMode = false;
+    static hoveredElement = null;
+    static hiddenSelectors = [];
+    static hostname = '';
+
+    static init() {
+        try {
+            this.hostname = window.top.location.hostname;
+        } catch(e) {
+            this.hostname = window.location.hostname;
+        }
+
+        // Tạo thẻ style tiêm vào head kháng chớp màn hình ở document_start
+        this.styleTag = document.createElement('style');
+        this.styleTag.id = 'adblock-manual-hider';
+        (document.head || document.documentElement).appendChild(this.styleTag);
+
+        this.loadAndApplySelectors();
+        this.setupMessageListener();
+        this.setupSelectionEvents();
+    }
+
+    static loadAndApplySelectors() {
+        const storageKey = `manual_ads_${this.hostname}`;
+        chrome.storage.local.get([storageKey], (data) => {
+            this.hiddenSelectors = data[storageKey] || [];
+            this.updateStyleTag();
+        });
+    }
+
+    static updateStyleTag() {
+        if (this.hiddenSelectors.length > 0) {
+            const cssSelectors = this.hiddenSelectors.map(item => typeof item === 'string' ? item : item.selector);
+            const rule = cssSelectors.join(',\n') + ' {\n  display: none !important;\n  visibility: hidden !important;\n  pointer-events: none !important;\n  width: 0 !important;\n  height: 0 !important;\n}';
+            this.styleTag.innerHTML = rule;
+        } else {
+            this.styleTag.innerHTML = '';
+        }
+    }
+
+    static setupMessageListener() {
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if (message.action === 'TOGGLE_MANUAL_BLOCKER') {
+                this.isSelectionMode = !this.isSelectionMode;
+                if (!this.isSelectionMode && this.hoveredElement) {
+                    this.hoveredElement.style.outline = '';
+                    this.hoveredElement = null;
+                }
+                if (this.isSelectionMode) {
+                    this.showToast("🔎 Chế độ Xoá Thủ Công: Rê chuột và Click vào phần tử muốn tuỷ diệt vĩnh viễn (Bấm ESC để huỷ).");
+                } else {
+                    this.showToast("Đã tắt chế độ Xoá nền tảng này.");
+                }
+                sendResponse({ success: true });
+            } else if (message.action === 'REMOVE_MANUAL_RULE') {
+                // Nhận yêu cầu Hoàn tác từ Popup
+                const ruleToRemove = message.selector;
+                
+                const exists = this.hiddenSelectors.find(item => {
+                    return (typeof item === 'string' ? item : item.selector) === ruleToRemove;
+                });
+
+                if (ruleToRemove && exists) {
+                    this.hiddenSelectors = this.hiddenSelectors.filter(item => {
+                        return (typeof item === 'string' ? item : item.selector) !== ruleToRemove;
+                    });
+                    
+                    const storageKey = `manual_ads_${this.hostname}`;
+                    
+                    // Hiệu ứng Fade In kiểu iOS trước khi loại bỏ khỏi style tag
+                    const el = document.querySelector(ruleToRemove);
+                    if (el) {
+                        // Chuẩn bị trạng thái 
+                        el.style.opacity = '0';
+                        el.style.filter = 'blur(10px)';
+                        el.style.transform = 'scale(0.8)';
+                        el.style.transition = 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                        
+                        // Áp dụng gỡ quy tắc trong DB
+                        chrome.storage.local.set({ [storageKey]: this.hiddenSelectors }, () => {
+                            this.updateStyleTag(); // Xóa display:none từ CSS
+                            this.showToast("♻️ Đã khôi phục phần tử thành công.");
+                            
+                            // Force reflow để browser nhận trạng thái ban đầu của inline
+                            void el.offsetHeight;
+                            
+                            // Bung hiệu ứng
+                            el.style.opacity = '1';
+                            el.style.filter = 'blur(0px)';
+                            el.style.transform = 'scale(1)';
+                            
+                            setTimeout(() => {
+                                el.style.transition = '';
+                                el.style.opacity = '';
+                                el.style.filter = '';
+                                el.style.transform = '';
+                            }, 600);
+                        });
+                    } else {
+                        // Nều không tìm thấy DOM thì gỡ luôn
+                        chrome.storage.local.set({ [storageKey]: this.hiddenSelectors }, () => {
+                            this.updateStyleTag();
+                            this.showToast("♻️ Đã khôi phục phần tử thành công.");
+                        });
+                    }
+                }
+                sendResponse({ success: true });
+            }
+        });
+
+        // Bấm phím ESC để thoát
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.isSelectionMode) {
+                this.isSelectionMode = false;
+                if (this.hoveredElement) this.hoveredElement.style.outline = '';
+                this.showToast("Đã tắt chế độ Xoá thủ công.");
+            }
+        });
+    }
+
+    static setupSelectionEvents() {
+        document.addEventListener('mouseover', (e) => {
+            if (!this.isSelectionMode) return;
+            const element = e.target;
+            if (this.hoveredElement && this.hoveredElement !== element) this.hoveredElement.style.outline = '';
+            this.hoveredElement = element;
+            if (this.hoveredElement) {
+                this.hoveredElement.style.outline = '3px dashed #ef4444';
+            }
+        });
+
+        document.addEventListener('mouseout', (e) => {
+            if (!this.isSelectionMode || !this.hoveredElement) return;
+            this.hoveredElement.style.outline = '';
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!this.isSelectionMode) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (this.hoveredElement) {
+                const elementToHide = this.hoveredElement;
+                elementToHide.style.outline = '';
+                
+                const selector = this.generateSelector(elementToHide);
+                if (selector) {
+                    // Trích xuất siêu dữ liệu thông minh để Popup hiển thị UI/UX
+                    let type = 'LAYOUT';
+                    let text = `Khối giao diện (${elementToHide.tagName})`;
+                    
+                    if (elementToHide.innerText && elementToHide.innerText.trim().length > 0) {
+                        type = 'TEXT';
+                        text = elementToHide.innerText.trim().substring(0, 35).replace(/\s+/g, ' ') + '...';
+                    } else if (elementToHide.tagName === 'IMG' || elementToHide.querySelector('img')) {
+                        type = 'IMAGE';
+                        text = 'Hình ảnh quảng cáo / Banner';
+                    } else if (elementToHide.tagName === 'VIDEO' || elementToHide.querySelector('video')) {
+                        type = 'VIDEO';
+                        text = 'Video Player / Multimedia';
+                    } else if (elementToHide.tagName === 'A' || elementToHide.querySelector('a')) {
+                        type = 'LINK';
+                        const a = elementToHide.tagName === 'A' ? elementToHide : elementToHide.querySelector('a');
+                        text = a.href ? a.href.replace(/^https?:\/\/(www\.)?/, '').substring(0, 35) + '...' : 'Liên kết (Link)';
+                    }
+                    const ruleObj = { selector, type, text, ts: Date.now() };
+
+                    // Animation "Tan Biến" (Dissolve) kiểu iOS 18 Safari
+                    elementToHide.style.transition = 'all 0.6s cubic-bezier(0.25, 1, 0.5, 1)';
+                    elementToHide.style.transform = 'scale(0.85) translateY(10px)';
+                    elementToHide.style.filter = 'blur(10px) grayscale(100%)';
+                    elementToHide.style.opacity = '0';
+                    elementToHide.style.pointerEvents = 'none';
+
+                    setTimeout(() => {
+                        this.saveSelector(ruleObj);
+                        SystemLogger.log('INFO', 'Xoá thủ công 1 phần tử trên trang', { tag: elementToHide.tagName, src: window.location.href, html: selector });
+                        this.showToast("✅ Đã diệt phần tử này mãi mãi. Reload lại trang web sẽ vẫn không còn!");
+                    }, 600); // Đợi 600ms sau khi hoạt ảnh kết thúc
+                } else {
+                    this.showToast("❌ Không thể xác định cấu trúc phần tử này.", true);
+                }
+
+                this.isSelectionMode = false;
+                this.hoveredElement = null;
+            }
+        }, true);
+    }
+
+    static generateSelector(el) {
+        if (!el || el.tagName === 'BODY' || el.tagName === 'HTML') return '';
+        let path = [];
+        let current = el;
+        while (current && current.tagName !== 'BODY' && current.tagName !== 'HTML') {
+            let tag = current.tagName.toLowerCase();
+            let siblings = Array.from(current.parentNode.children);
+            let index = siblings.indexOf(current) + 1;
+            path.unshift(`${tag}:nth-child(${index})`);
+            current = current.parentNode;
+        }
+        if (path.length === 0) return '';
+        return 'body > ' + path.join(' > ');
+    }
+
+    static saveSelector(ruleObj) {
+        const selectorStr = typeof ruleObj === 'string' ? ruleObj : ruleObj.selector;
+        const exists = this.hiddenSelectors.some(item => {
+            const s = typeof item === 'string' ? item : item.selector;
+            return s === selectorStr;
+        });
+
+        if (!exists) {
+            this.hiddenSelectors.push(ruleObj);
+            // Giữ cho file nhẹ và siêu nhanh (tối đa 100 rule thủ công / domain)
+            if (this.hiddenSelectors.length > 100) {
+                this.hiddenSelectors.shift();
+            }
+            
+            const storageKey = `manual_ads_${this.hostname}`;
+            chrome.storage.local.set({ [storageKey]: this.hiddenSelectors }, () => {
+                this.updateStyleTag();
+            });
+            
+            // Gửi sự kiện cho extension đếm
+            SystemLogger.sendDomBlockLog('Xoá Thủ Công', { tag: 'Manual', src: this.hostname });
+        }
+    }
+
+    static showToast(msg, isError = false) {
+        const tempMsg = document.createElement('div');
+        tempMsg.style.cssText = `position:fixed; bottom:30px; left:50%; transform:translateX(-50%); z-index:99999999; padding:12px 24px; background:${isError ? '#ef4444' : '#1e293b'}; color:white; border-radius:12px; font-family:-apple-system, BlinkMacSystemFont, sans-serif; font-size: 14px; font-weight:600; box-shadow: 0 10px 25px rgba(0,0,0,0.3); transition: opacity 0.3s; opacity: 1; pointer-events:none; border: 1px solid rgba(255,255,255,0.1);`;
+        tempMsg.innerText = msg;
+        document.body.appendChild(tempMsg);
+        setTimeout(() => {
+            tempMsg.style.opacity = '0';
+            setTimeout(() => tempMsg.remove(), 300);
+        }, 3500);
+    }
+}
+
+// ==========================================
 // 5. APP CORE: Bootstrap & Sub-Engine Registry
 //
 // API cho Sub-Engines:
@@ -382,6 +626,9 @@ class AppCore {
         SystemLogger.listenForLogRequests();
         SystemLogger.log('INFO', 'Khởi tạo AdBlock Core Script.');
         PopupBlocker.init();
+        
+        // ManualBlocker chạy ĐỘC LẬP trên mọi website (kể cả có SubEngine hay không)
+        ManualBlocker.init();
 
         if (this._registeredEngines.length === 0) {
             // Không có Sub-Engine nào đăng ký → đây là web thường → bật Generic Scanner

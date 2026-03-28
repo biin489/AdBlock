@@ -92,98 +92,7 @@ class FacebookAdEngine {
     }
 }
 
-// ==========================================
-// 2. DEBUG UI MANAGER (chỉ dùng cho Facebook)
-// ==========================================
-class DebugUIManager {
-    static isDebugMode = false;
-    static hoveredElement = null;
 
-    static init() {
-        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-            if (message.action === 'TOGGLE_DEBUG_MODE') {
-                this.isDebugMode = message.state;
-                if (!this.isDebugMode && this.hoveredElement) {
-                    this.hoveredElement.style.outline = '';
-                    this.hoveredElement.style.cursor = '';
-                    this.hoveredElement = null;
-                }
-                if (this.isDebugMode) {
-                    this.showTemporaryStatus("💡 Chế độ Quét: Rê chuột vào bài viết và Click để trích xuất HTML!");
-                }
-                sendResponse({ success: true });
-            } else if (message.action === 'GET_DEBUG_STATUS') {
-                sendResponse({ isDebugMode: this.isDebugMode });
-            }
-        });
-
-        document.addEventListener('mouseover', (e) => {
-            if (!this.isDebugMode) return;
-            const post = e.target.closest('div[data-pagelet^="FeedUnit"], div[role="article"], div[aria-posinset]') || e.target;
-            if (this.hoveredElement && this.hoveredElement !== post) this.hoveredElement.style.outline = '';
-            this.hoveredElement = post;
-            if (this.hoveredElement) {
-                this.hoveredElement.style.outline = '4px solid #f44336';
-                this.hoveredElement.style.cursor = 'crosshair';
-            }
-        });
-
-        document.addEventListener('mouseout', (e) => {
-            if (!this.isDebugMode || !this.hoveredElement) return;
-            this.hoveredElement.style.outline = '';
-            this.hoveredElement.style.cursor = '';
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!this.isDebugMode) return;
-            e.preventDefault();
-            e.stopPropagation();
-
-            if (this.hoveredElement) {
-                this.hoveredElement.style.outline = '';
-                this.hoveredElement.style.cursor = '';
-                const htmlData = this.hoveredElement.outerHTML;
-
-                window.SystemLogger?.log('INFO', 'Người dùng đã dùng Debug Mode trích xuất 1 bài viết thủ công.');
-
-                if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(htmlData).then(() => {
-                        this.showTemporaryStatus("✅ Đã copy mã HTML thành công! Hãy dán (Ctrl+V) gửi cho tôi.");
-                    }).catch(() => this.fallbackCopyTextToClipboard(htmlData));
-                } else {
-                    this.fallbackCopyTextToClipboard(htmlData);
-                }
-
-                this.isDebugMode = false;
-                chrome.runtime.sendMessage({ action: 'DEBUG_MODE_AUTO_OFF' }).catch(() => {});
-            }
-        }, true);
-    }
-
-    static stop() {
-        this.isDebugMode = false;
-        if (this.hoveredElement) {
-            this.hoveredElement.style.outline = '';
-            this.hoveredElement.style.cursor = '';
-        }
-    }
-
-    static showTemporaryStatus(msg, isError = false) {
-        const tempMsg = document.createElement('div');
-        tempMsg.style.cssText = `position:fixed; top:80px; left:50%; transform:translateX(-50%); z-index:999999; padding:12px 20px; background:${isError ? '#f44336' : '#4CAF50'}; color:white; border-radius:8px; font-family:Arial; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: opacity 0.5s; opacity: 1; pointer-events:none;`;
-        tempMsg.innerText = msg;
-        document.body.appendChild(tempMsg);
-        setTimeout(() => {
-            tempMsg.style.opacity = '0';
-            setTimeout(() => tempMsg.remove(), 500);
-        }, 3000);
-    }
-
-    static fallbackCopyTextToClipboard(text) {
-        // Fallback: notify user to open DevTools Console to copy manually
-        this.showTemporaryStatus("❌ Không thể copy tự động! Hãy ấn F12 → Console để xem mã HTML.", true);
-    }
-}
 
 // ==========================================
 // 3. FACEBOOK SCANNER: Lọc luồng Newsfeed
@@ -214,7 +123,6 @@ class FacebookScanner {
 
             this.injectStealthBridge();
             this.setupBridgeListeners();
-            DebugUIManager.init();
         });
 
         chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -278,9 +186,6 @@ class FacebookScanner {
         if (this._observer) {
             this._observer.disconnect();
             this._observer = null;
-        }
-        if (typeof DebugUIManager !== 'undefined' && DebugUIManager.stop) {
-            DebugUIManager.stop();
         }
     }
 

@@ -1,4 +1,4 @@
-﻿document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
     PopupApp.init();
 });
 
@@ -21,18 +21,20 @@ class PopupApp {
         this.exportBtn = document.getElementById('exportBtn');
         this.exportSysBtn = document.getElementById('exportSysBtn');
         this.toggleBtn = document.getElementById('toggleBtn');
-        this.toggleScanBtn = document.getElementById('toggleScanBtn');
-        this.debugHint = document.getElementById('debugHint');
+
         this.fbSettingsPanel = document.getElementById('fbSettingsPanel');
         this.blockAdsCb = document.getElementById('blockAdsCb');
         this.blockSuggestedCb = document.getElementById('blockSuggestedCb');
         this.blockStrangersCb = document.getElementById('blockStrangersCb');
 
+        this.manualBlockList = document.getElementById('manualBlockList');
+        this.manualBlockCount = document.getElementById('manualBlockCount');
+
         this.currentTabData = null;
         this.currentUrl = "unknown";
         this.currentTabId = null;
         this.isEnabled = false;
-        this.isDebugMode = false;
+
         this.fbSettings = { block_ads: true, block_suggested: true, block_strangers: true };
     }
 
@@ -84,7 +86,7 @@ class PopupApp {
             document.getElementById('mainView').classList.add('active');
         });
 
-        this.toggleScanBtn.addEventListener('click', () => this.toggleDebugMode());
+
 
         const saveFBSettings = () => this.updateFBSettings();
         this.blockAdsCb.addEventListener('change', saveFBSettings);
@@ -148,9 +150,15 @@ class PopupApp {
             
             this.currentDomain.textContent = this.currentUrl;
 
-            chrome.storage.local.get(['logsByTab', 'enabledDomains', 'fb_settings'], (data) => {
+            let host = this.currentUrl;
+            let baseHost = host;
+            if (host.startsWith('www.')) {
+                baseHost = host.substring(4);
+            }
+
+            chrome.storage.local.get(null, (data) => {
                 const enabledDomains = data.enabledDomains || [];
-                this.isEnabled = enabledDomains.includes(this.currentUrl);
+                this.isEnabled = (host !== "unknown" && enabledDomains.includes(host));
 
                 if (data.fb_settings) {
                     this.fbSettings = data.fb_settings;
@@ -161,6 +169,32 @@ class PopupApp {
                 
                 this.updateToggleBtnUI();
 
+                // Dò tìm chính xác Array trên toàn bộ mảng của tên miền phụ/chính
+                let manualAds = [];
+                let exactStorageKey = `manual_ads_${host}`;
+                
+                for(let key in data) {
+                    if (key.startsWith('manual_ads_')) {
+                        let domainPart = key.replace('manual_ads_', '');
+                        if (host === domainPart || domainPart === baseHost || host.endsWith('.' + domainPart)) {
+                            manualAds = manualAds.concat(data[key]);
+                            // Set the save target to the exact found key if we want accurate deletes
+                            exactStorageKey = key;
+                        }
+                    }
+                }
+                
+                // Filter trùng lặp trên cả rule string cũ và rule object mới
+                let uniqueMap = {};
+                manualAds.forEach(item => {
+                    let sel = typeof item === 'string' ? item : item.selector;
+                    if (!uniqueMap[sel]) {
+                        uniqueMap[sel] = typeof item === 'string' ? { selector: item, text: 'Vùng giao diện (Tiêu chuẩn cũ)', type: 'OLD' } : item;
+                    }
+                });
+                manualAds = Object.values(uniqueMap);
+                
+                this.renderManualBlockList(manualAds, exactStorageKey.replace('manual_ads_', ''));
                 // Cập nhật hiển thị Version
                 const manifest = chrome.runtime.getManifest();
                 const versionDisplay = document.getElementById('versionDisplay');
@@ -170,17 +204,7 @@ class PopupApp {
 
                 if (this.currentUrl.includes('facebook.com') && this.isEnabled) {
                     this.fbSettingsPanel.style.display = 'block';
-                    this.toggleScanBtn.style.display = 'block';
-                    chrome.tabs.sendMessage(this.currentTabId, { action: 'GET_DEBUG_STATUS' }, (response) => {
-                        if (!chrome.runtime.lastError && response && response.isDebugMode !== undefined) {
-                            this.isDebugMode = response.isDebugMode;
-                            this.updateDebugUI();
-                        }
-                    });
-                } else {
-                    this.fbSettingsPanel.style.display = 'none';
-                    this.toggleScanBtn.style.display = 'none';
-                    this.debugHint.style.display = 'none';
+
                 }
 
                 const tabData = (data.logsByTab && data.logsByTab[this.currentTabId]) || { count: 0, stats: { network: 0, dom: 0, popup: 0 }, logs: [] };
@@ -210,29 +234,78 @@ class PopupApp {
         }
     }
 
-    static toggleDebugMode() {
-        if (!this.currentTabId || !this.currentUrl.includes('facebook.com')) return;
-        
-        this.isDebugMode = !this.isDebugMode;
-        chrome.tabs.sendMessage(this.currentTabId, { action: 'TOGGLE_DEBUG_MODE', state: this.isDebugMode }, (response) => {
-            if (chrome.runtime.lastError) {
-                this.isDebugMode = false;
+    static renderManualBlockList(selectors, host) {
+        if (!this.manualBlockList || !this.manualBlockCount) return;
+
+        this.manualBlockCount.innerText = selectors.length;
+        if (selectors.length === 0) {
+            this.manualBlockList.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:11px; padding:12px;">Chưa xoá thủ công mục nào</div>';
+            return;
+        }
+
+        this.manualBlockList.innerHTML = '';
+        selectors.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border-light); background: #ffffff; gap: 8px;';
+            
+            const txt = document.createElement('div');
+            
+            // Xử lý ICON dựa trên metadata
+            let iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>'; // LAYOUT
+            if (item.type === 'TEXT') {
+                iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>';
+            } else if (item.type === 'IMAGE') {
+                iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+            } else if (item.type === 'VIDEO') {
+                iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
+            } else if (item.type === 'LINK') {
+                iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
             }
-            this.updateDebugUI();
+
+            txt.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; align-items: center; justify-content: center; background: #f1f5f9; padding: 6px; border-radius: 8px;">
+                        ${iconSvg}
+                    </div>
+                    <div style="display: flex; flex-direction: column; overflow: hidden;">
+                        <span style="font-weight:600; font-size:12px; color:var(--text-main); font-family:system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.text}</span>
+                        <span style="font-size:11px; color:var(--text-muted); font-family:system-ui, sans-serif;">${item.type === 'OLD' ? 'Thiết lập cũ / Không mô tả' : ('Đã ẩn lúc ' + (item.ts ? new Date(item.ts).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) : 'nay'))}</span>
+                    </div>
+                </div>
+            `;
+            txt.title = `Chi tiết kĩ thuật DOM:\n${item.selector}`;
+            txt.style.cssText = 'flex: 1; min-width: 0; cursor: help;';
+            
+            const btn = document.createElement('button');
+            btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+            btn.style.cssText = 'background: #fee2e2; border: 1px solid #fca5a5; color: #ef4444; cursor: pointer; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); flex-shrink: 0;';
+            btn.title = "Khôi phục lại phần tử này";
+            btn.onmouseover = () => { btn.style.background = '#fecaca'; btn.style.transform = 'scale(1.05)'; };
+            btn.onmouseout = () => { btn.style.background = '#fee2e2'; btn.style.transform = 'scale(1)'; };
+            btn.onclick = () => {
+                btn.innerHTML = '⏳';
+                chrome.tabs.sendMessage(this.currentTabId, { action: 'REMOVE_MANUAL_RULE', selector: item.selector }, () => {
+                    const newSelectors = selectors.filter(s => s.selector !== item.selector);
+                    this.renderManualBlockList(newSelectors, host);
+                    
+                    const key = `manual_ads_${host}`;
+                    chrome.storage.local.get([key], (d) => {
+                        let config = d[key] || [];
+                        config = config.filter(s => {
+                            let curr = typeof s === 'string' ? s : s.selector;
+                            return curr !== item.selector;
+                        });
+                        chrome.storage.local.set({[key]: config});
+                    });
+                });
+            };
+            
+            row.appendChild(txt);
+            row.appendChild(btn);
+            this.manualBlockList.appendChild(row);
         });
     }
 
-    static updateDebugUI() {
-        if (this.isDebugMode) {
-            this.toggleScanBtn.classList.add('active');
-            this.toggleScanBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> <span>Tắt Chế độ Quét</span>';
-            this.debugHint.style.display = 'block';
-        } else {
-            this.toggleScanBtn.classList.remove('active');
-            this.toggleScanBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> <span>Công cụ Quét HTML Thủ Công</span>';
-            this.debugHint.style.display = 'none';
-        }
-    }
 
     static updateFBSettings() {
         this.fbSettings = {
@@ -244,18 +317,20 @@ class PopupApp {
 
         const isAnyEnabled = this.fbSettings.block_ads || this.fbSettings.block_suggested || this.fbSettings.block_strangers;
         
+        let currentHost = this.currentUrl;
+
         chrome.storage.local.get(['enabledDomains'], (data) => {
             let enabledDomains = data.enabledDomains || [];
             let needsReload = false;
 
             if (!isAnyEnabled && this.isEnabled) {
                 this.isEnabled = false;
-                enabledDomains = enabledDomains.filter(domain => domain !== this.currentUrl);
+                enabledDomains = enabledDomains.filter(domain => domain !== currentHost && domain !== this.currentUrl);
                 needsReload = true;
             } else if (isAnyEnabled && !this.isEnabled) {
                 this.isEnabled = true;
-                if (!enabledDomains.includes(this.currentUrl)) {
-                    enabledDomains.push(this.currentUrl);
+                if (!enabledDomains.includes(currentHost)) {
+                    enabledDomains.push(currentHost);
                 }
                 needsReload = true;
             }

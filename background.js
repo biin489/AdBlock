@@ -57,6 +57,21 @@ class BackgroundService {
     static setupInstallationEvent() {
         chrome.runtime.onInstalled.addListener(() => {
             chrome.storage.local.set({ logsByTab: {} });
+            
+            // Xóa hết menu cũ nếu có để tránh lỗi trùng lặp
+            chrome.contextMenus.removeAll(() => {
+                chrome.contextMenus.create({
+                    id: "adblock_manual_hide",
+                    title: "Xoá thủ công phần tử này",
+                    contexts: ["all"]
+                });
+            });
+        });
+
+        chrome.contextMenus.onClicked.addListener((info, tab) => {
+            if (info.menuItemId === "adblock_manual_hide" && tab && tab.id) {
+                chrome.tabs.sendMessage(tab.id, { action: 'TOGGLE_MANUAL_BLOCKER' }).catch(() => {});
+            }
         });
     }
 

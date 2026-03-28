@@ -2,7 +2,7 @@
 
 > Chrome Extension (Manifest V3) — Chặn quảng cáo thông minh trên Facebook và YouTube với chế độ Stealth Mode.
 
-![Version](https://img.shields.io/badge/version-1.2%20Stable-blue)
+![Version](https://img.shields.io/badge/version-1.4%20Smart%20UI-blue)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -12,6 +12,7 @@
 
 - 🚫 **Chặn quảng cáo Facebook** — Phát hiện và ẩn bài viết được tài trợ ("Được tài trợ"), "Gợi ý cho bạn" và các dạng quảng cáo ẩn khác
 - 🎬 **Chặn quảng cáo YouTube** — Bỏ qua pre-roll, mid-roll và overlay ads
+- 🖱️ **Chặn Thủ công AI-Smart** — Trỏ chuột chọn vùng và ẩn vĩnh viễn. Tích hợp AI-smart Metadata tự động dịch khối HTML thành ngôn ngữ con người (Hình ảnh/Video/Văn bản) trên bảng quản lý hoàn tác cực thông minh.
 - 🥷 **Stealth Mode** — Inject script vào page context để bypass các cơ chế anti-adblock của Facebook
 - 📡 **DeclarativeNetRequest** — Chặn request mạng theo quy tắc tĩnh, hiệu suất cao, không cần quyền `webRequest`
 - 📊 **Thống kê realtime** — Popup hiển thị số lượng quảng cáo đã chặn theo phiên
@@ -72,6 +73,11 @@ AdBlock/
 - File `rules.json` định nghĩa các quy tắc chặn request theo URL pattern
 - Sử dụng `declarativeNetRequest` API — hiệu năng cao, không làm chậm browser
 
+### CSS Element Hider (Chặn Thủ Công)
+- Sinh CSS Selector tĩnh tuyệt đối (DOM Path) kháng ID và kháng Class (Bypass được cơ chế chống chèn của Facebook, Youtube).
+- Tự động bơm `<style>` injection ở giai đoạn `document_start` triệt tiêu chớp giật layout khi tải mới.
+- Lưu trữ cục bộ bảo mật và giới hạn RAM `chrome.storage.local`.
+
 ---
 
 ## 📋 Quyền yêu cầu
@@ -80,8 +86,9 @@ AdBlock/
 |---|---|
 | `declarativeNetRequest` | Chặn request mạng theo quy tắc |
 | `scripting` | Inject content scripts động |
-| `storage` | Lưu thống kê và cài đặt |
+| `storage` | Lưu thống kê và cài đặt chặn thủ công |
 | `tabs` | Đọc thông tin tab hiện tại |
+| `contextMenus` | Bật Menu Chuột Phải chèn UI chọn phần tử cần xóa |
 
 ---
 

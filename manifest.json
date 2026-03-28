@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extension_name__",
-  "version": "1.2.0",
-  "version_name": "1.2 Stable",
+  "version": "1.4.0",
+  "version_name": "1.4 Smart UI",
   "author": "Thi Phạm",
   "description": "__MSG_extension_description__",
   "default_locale": "vi",
@@ -11,7 +11,8 @@
     "declarativeNetRequestFeedback",
     "scripting",
     "storage",
-    "tabs"
+    "tabs",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>"
