@@ -6,6 +6,12 @@
   "author": "Thi Phạm",
   "description": "__MSG_extension_description__",
   "default_locale": "vi",
+  "icons": {
+    "16": "icons/icon.png",
+    "32": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
+  },
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestFeedback",
@@ -21,6 +27,12 @@
     "service_worker": "background.js"
   },
   "action": {
+    "default_icon": {
+      "16": "icons/icon.png",
+      "32": "icons/icon.png",
+      "48": "icons/icon.png",
+      "128": "icons/icon.png"
+    },
     "default_popup": "popup.html",
     "default_title": "Xem thống kê chặn quảng cáo"
   },
