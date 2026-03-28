@@ -9,54 +9,47 @@ class BackgroundService {
         this.setupTabEvents();
         this.setupMessageListener();
         this.setupNetworkRulesListener();
-        this.syncAllowlistOnStartup(); // [PHƯƠNG ÁN B] Đồng bộ allowlist khi Service Worker khởi động lại
+        this.syncAllowlistOnStartup();
     }
 
-    // --- 0. ĐỒNG BỘ ALLOWLIST KHI SERVICE WORKER KHỞI ĐỘNG ---
-    // Dynamic rules bị mất mỗi khi Service Worker ngủ/thức dậy.
-    // Hàm này tái tạo chúng từ storage ngay khi SW khởi động.
-    static syncAllowlistOnStartup() {
-        chrome.storage.local.get(['enabledDomains', 'allKnownDomains', 'allowlistRuleMap'], async (data) => {
-            const enabledDomains = data.enabledDomains || [];
-            const allKnownDomains = data.allKnownDomains || [];
-            // [H-2] Dùng storage-based map thay vì hash để tránh collision
-            const allowlistRuleMap = data.allowlistRuleMap || {};
+    // Sync allowlist on startup: dynamic rules are lost each time the Service Worker sleeps.
+    // This function recreates them from storage immediately on SW startup.
+    static async syncAllowlistOnStartup() {
+        const data = await chrome.storage.local.get(['enabledDomains', 'allKnownDomains', 'allowlistRuleMap']);
+        const enabledDomains = data.enabledDomains || [];
+        const allKnownDomains = data.allKnownDomains || [];
+        const allowlistRuleMap = data.allowlistRuleMap || {};
 
-            // Tìm ra các domain đang TẮT (từng được biết đến nhưng không trong enabledDomains)
-            const disabledDomains = allKnownDomains.filter(d => !enabledDomains.includes(d));
+        // Find domains that are currently OFF (known but not in enabledDomains)
+        const disabledDomains = allKnownDomains.filter(d => !enabledDomains.includes(d));
+        if (disabledDomains.length === 0) return;
 
-            if (disabledDomains.length === 0) return;
+        // Only remove rules in our allowlist range (ID >= 10000) to avoid touching other rules
+        const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+        const allowlistIdsToRemove = existingRules
+            .map(r => r.id)
+            .filter(id => id >= 10000);
 
-            // [H-1] Chỉ xóa các rule trong dải allowlist (ID >= 10000) của chúng ta
-            // Không xóa rule của bên khác hoặc user-defined rules có thể tồn tại trong tương lai
-            const existingRules = await new Promise(resolve =>
-                chrome.declarativeNetRequest.getDynamicRules(resolve)
-            );
-            const allowlistIdsToRemove = existingRules
-                .map(r => r.id)
-                .filter(id => id >= 10000);
+        const rulesToAdd = disabledDomains
+            .filter(hostname => allowlistRuleMap[hostname])
+            .map(hostname => ({
+                id: allowlistRuleMap[hostname],
+                priority: 100,
+                action: { type: 'allow' },
+                condition: {
+                    initiatorDomains: [hostname],
+                    resourceTypes: [
+                        'main_frame', 'sub_frame', 'script', 'image',
+                        'xmlhttprequest', 'stylesheet', 'font', 'media', 'other'
+                    ]
+                }
+            }));
 
-            const rulesToAdd = disabledDomains
-                .filter(hostname => allowlistRuleMap[hostname]) // Chỉ tái tạo nếu đã có mapping
-                .map(hostname => ({
-                    id: allowlistRuleMap[hostname],
-                    priority: 100,
-                    action: { type: 'allow' },
-                    condition: {
-                        initiatorDomains: [hostname],
-                        resourceTypes: [
-                            'main_frame', 'sub_frame', 'script', 'image',
-                            'xmlhttprequest', 'stylesheet', 'font', 'media', 'other'
-                        ]
-                    }
-                }));
+        if (rulesToAdd.length === 0 && allowlistIdsToRemove.length === 0) return;
 
-            if (rulesToAdd.length === 0 && allowlistIdsToRemove.length === 0) return;
-
-            chrome.declarativeNetRequest.updateDynamicRules({
-                addRules: rulesToAdd,
-                removeRuleIds: allowlistIdsToRemove
-            });
+        chrome.declarativeNetRequest.updateDynamicRules({
+            addRules: rulesToAdd,
+            removeRuleIds: allowlistIdsToRemove
         });
     }
 

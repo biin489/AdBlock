@@ -219,14 +219,13 @@ class GenericScanner {
         }, 2500);
     }
 
-    // [M-1] Cho phép dừng scanner từ bên ngoài (ví dụ: khi user toggle TẮT)
     static stop() {
         if (this._interval) {
             clearInterval(this._interval);
             this._interval = null;
         }
         if (this.timeout) {
-            clearTimeout(this.timeout);
+            cancelIdleCallback(this.timeout);
             this.timeout = null;
         }
     }

@@ -17,7 +17,7 @@ if (window.AppCore) {
 class FacebookAdEngine {
     static EXACT_AD_WORDS = ["được tài trợ", "sponsored"];
     static EXACT_SUGGESTION_WORDS = ["gợi ý cho bạn", "suggested for you", "những người bạn có thể biết", "people you may know"];
-    static fiberAdMap = new Map(); // Store results from Stealth Bridge
+    static fiberAdMap = new Map(); // Results from Stealth Bridge (React Fiber), capped at 200 entries
 
     static isFacebookSpam(post, settings) {
         try {
@@ -144,9 +144,6 @@ class DebugUIManager {
                 this.hoveredElement.style.cursor = '';
                 const htmlData = this.hoveredElement.outerHTML;
 
-                // [Prod] Suppress verbose debug logs in production console
-                // console.log("=== TRÍCH XUẤT HTML BÀI VIẾT ===");
-                // console.log(htmlData);
                 window.SystemLogger?.log('INFO', 'Người dùng đã dùng Debug Mode trích xuất 1 bài viết thủ công.');
 
                 if (navigator.clipboard && window.isSecureContext) {
@@ -183,11 +180,8 @@ class DebugUIManager {
     }
 
     static fallbackCopyTextToClipboard(text) {
-        // [L-1] Đã xóa document.execCommand('copy') vì là deprecated API.
-        // Fallback: hiển thị thông báo hướng dẫn user mở Console để copy thủ công.
+        // Fallback: notify user to open DevTools Console to copy manually
         this.showTemporaryStatus("❌ Không thể copy tự động! Hãy ấn F12 → Console để xem mã HTML.", true);
-        // console.log("=== MÃ HTML CỦA PHẦN TỬ RÁC ===");
-        // console.log(text);
     }
 }
 
@@ -249,10 +243,13 @@ class FacebookScanner {
             const { results } = e.detail;
             if (results && Array.isArray(results)) {
                 results.forEach(res => {
+                    // LRU eviction: keep fiberAdMap under 200 entries
+                    if (FacebookAdEngine.fiberAdMap.size >= 200) {
+                        FacebookAdEngine.fiberAdMap.delete(FacebookAdEngine.fiberAdMap.keys().next().value);
+                    }
                     FacebookAdEngine.fiberAdMap.set(res.id, res.reason);
                 });
-                // DO NOT call cleanFeed() here to prevent infinite loop.
-                // The results will be picked up by the next regular interval scan.
+                // Results are picked up by the next regular interval scan
             }
         });
     }

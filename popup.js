@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+﻿document.addEventListener('DOMContentLoaded', () => {
     PopupApp.init();
 });
 
@@ -607,12 +607,14 @@ class AllowlistManager {
     }
 }
 
+
 /**
- * Quản lý Change Log động từ file CHANGELOG.md
+ * Manages the dynamic Change Log from CHANGELOG.md
  */
 class ChangelogManager {
     static async renderLatest() {
         const listContainer = document.getElementById('changelogList');
+        const titleEl = document.getElementById('changelogTitle');
         if (!listContainer) return;
         try {
             const url = chrome.runtime.getURL('CHANGELOG.md');
@@ -621,14 +623,21 @@ class ChangelogManager {
             const text = await response.text();
             const lines = text.split('\n');
             let latestItems = [];
+            let latestVersion = '';
             let found = false;
             for (let line of lines) {
                 const clean = line.trim();
                 if (clean.startsWith('## [')) {
                     if (found) break;
-                    found = true; continue;
+                    found = true;
+                    const match = clean.match(/## \[([^\]]+)\]/);
+                    if (match) latestVersion = match[1];
+                    continue;
                 }
                 if (found && clean.startsWith('- ')) latestItems.push(clean.substring(2));
+            }
+            if (titleEl && latestVersion) {
+                titleEl.textContent = `Tính năng mới v${latestVersion}`;
             }
             if (latestItems.length > 0) {
                 listContainer.innerHTML = latestItems.slice(0, 4).map(item => `

@@ -2,7 +2,7 @@
 
 All notable changes to the Absolute AdBlocker extension will be documented in this file.
 
-## [1.2.0.0] - 2026-03-15
+## [1.2.0] - 2026-03-29
 ### Added
 - **Commercial Readiness**: First formal release preparation for Chrome Web Store.
 - **Versioning System**: Implemented 4-digit SemVer for better update tracking.
