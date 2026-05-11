@@ -1,8 +1,23 @@
 // ==========================================
 // CONTENT_CORE.JS - CORE ENGINE
 // Chạy trên MỌI trang web (nếu được bật).
-// Cung cấp: SystemLogger, AdBlockEngine, PopupBlocker, GenericScanner
+// Cung cấp: SystemLogger, AdBlockEngine, PopupBlocker, GenericScanner, AntiDetectGuard
 // ==========================================
+
+// ==========================================
+// ANTI-DETECT INJECT (document_start, ĐỒNG BỘ — chạy trước script của trang)
+// Inject anti_detect_inject.js vào page context để bypass anti-adblock detection.
+// Phải chạy ở top-level (KHÔNG đặt trong AppCore.init vì async storage.local.get sẽ trễ).
+// ==========================================
+(function injectAntiDetect() {
+    try {
+        const s = document.createElement('script');
+        s.src = chrome.runtime.getURL('anti_detect_inject.js');
+        s.async = false;
+        s.onload = function () { this.remove(); };
+        (document.head || document.documentElement).appendChild(s);
+    } catch (e) { }
+})();
 
 // ==========================================
 // 1. SYSTEM LOGGER: Quản lý Hệ thống Log
@@ -588,7 +603,159 @@ class ManualBlocker {
 }
 
 // ==========================================
-// 5. APP CORE: Bootstrap & Sub-Engine Registry
+// 6. ANTI-DETECT GUARD: Phát hiện & xoá UI cảnh báo anti-adblock
+// (Page-context shims đã được inject ở top file; class này xử lý DOM-side)
+// ==========================================
+class AntiDetectGuard {
+    static _observer = null;
+    static _started = false;
+
+    // Từ khoá nhận diện cảnh báo anti-adblock (lowercase, tiếng Việt + Anh)
+    static _warningKeywords = [
+        'phát hiện trình chặn', 'phát hiện chặn quảng cáo', 'phát hiện adblock',
+        'tắt adblock', 'tắt ad block', 'tắt trình chặn', 'tắt tiện ích chặn',
+        'vui lòng tắt', 'whitelist', 'thêm website vào whitelist',
+        'adblock detected', 'ad blocker detected', 'ad-blocker detected',
+        'disable adblock', 'disable ad block', 'disable your ad blocker',
+        'please disable', 'turn off adblock', 'please whitelist',
+        'unblock ads'
+    ];
+
+    // Selector của các player thường bị site ẩn khi detect adblock — sẽ unhide khi diệt warning
+    static _playerSelectors = [
+        '#player', '.player', '#video-player', '.video-player',
+        '.jwplayer', '.video-js', '.plyr',
+        'iframe[allowfullscreen]', 'iframe[src*=".m3u8"]', 'iframe[src*="embed"]',
+        'video[controls]', 'video[src]'
+    ];
+
+    static init() {
+        if (this._started) return;
+        this._started = true;
+
+        // Quét ngay khi DOM sẵn sàng
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.scanAll(), { once: true });
+        } else {
+            this.scanAll();
+        }
+
+        // Theo dõi mutations để bắt warning xuất hiện sau DOMContentLoaded (lazy/dynamic inject)
+        this._observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType !== 1) continue;
+                    this.checkNode(node);
+                }
+            }
+        });
+        this._observer.observe(document.documentElement, { childList: true, subtree: true });
+
+        window.addEventListener('adblock:stop', () => this.stop());
+        SystemLogger.log('INFO', 'AntiDetectGuard đã khởi tạo (overlay killer + player unhide).');
+    }
+
+    static stop() {
+        if (this._observer) {
+            this._observer.disconnect();
+            this._observer = null;
+        }
+        this._started = false;
+    }
+
+    static scanAll() {
+        try {
+            // Chỉ quét các container có khả năng chứa modal/banner cảnh báo
+            const candidates = document.querySelectorAll('div, section, aside, dialog, [role="dialog"], [role="alertdialog"]');
+            candidates.forEach(el => this.checkNode(el, false));
+        } catch (e) { }
+    }
+
+    static checkNode(node, includeSelf = true) {
+        try {
+            // Kiểm tra cả node + descendants (cho trường hợp mutation thêm 1 cụm DOM lớn)
+            const stack = includeSelf ? [node] : [];
+            if (node.querySelectorAll) {
+                const found = node.querySelectorAll('div, section, aside, dialog, [role="dialog"], [role="alertdialog"]');
+                for (let i = 0; i < found.length && i < 50; i++) stack.push(found[i]);
+            }
+
+            for (const el of stack) {
+                if (!el || el.dataset?.adblockKilled === '1') continue;
+                const text = (el.textContent || '').toLowerCase().trim();
+                if (text.length < 8 || text.length > 800) continue;
+
+                for (const kw of this._warningKeywords) {
+                    if (text.includes(kw)) {
+                        this.removeWarning(el);
+                        break;
+                    }
+                }
+            }
+        } catch (e) { }
+    }
+
+    static removeWarning(node) {
+        // Walk up tìm container thực sự của cảnh báo (thường là position:fixed/absolute, z-index cao)
+        let target = node;
+        let current = node;
+        let levels = 0;
+        while (current && current.parentElement && levels < 6) {
+            try {
+                const style = window.getComputedStyle(current);
+                const z = parseInt(style.zIndex, 10) || 0;
+                if (style.position === 'fixed' || style.position === 'absolute' || z > 100) {
+                    target = current;
+                }
+            } catch (e) { }
+            const parentTag = current.parentElement.tagName;
+            if (parentTag === 'BODY' || parentTag === 'HTML' || parentTag === 'MAIN') break;
+            current = current.parentElement;
+            levels++;
+        }
+
+        if (!target || ['BODY', 'HTML'].includes(target.tagName)) return;
+        if (target.dataset.adblockKilled === '1') return;
+        target.dataset.adblockKilled = '1';
+
+        const info = SystemLogger.extractElementInfo(target);
+        try {
+            target.style.setProperty('display', 'none', 'important');
+            target.remove();
+        } catch (e) { }
+
+        SystemLogger.log('INFO', 'Anti-Detect: Xóa cảnh báo anti-adblock', info);
+        SystemLogger.sendDomBlockLog('Anti-Detect: Cảnh báo anti-adblock', info);
+
+        // Khôi phục player có thể đã bị site ẩn khi hiển thị warning
+        this.unhidePlayer();
+
+        // Tháo lớp khoá scroll mà site hay set khi mở modal
+        try {
+            document.documentElement.style.removeProperty('overflow');
+            document.body && document.body.style.removeProperty('overflow');
+        } catch (e) { }
+    }
+
+    static unhidePlayer() {
+        try {
+            for (const sel of this._playerSelectors) {
+                document.querySelectorAll(sel).forEach(el => {
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) < 0.1) {
+                        el.style.setProperty('display', 'block', 'important');
+                        el.style.setProperty('visibility', 'visible', 'important');
+                        el.style.setProperty('opacity', '1', 'important');
+                    }
+                });
+            }
+        } catch (e) { }
+    }
+}
+window.AntiDetectGuard = AntiDetectGuard;
+
+// ==========================================
+// 7. APP CORE: Bootstrap & Sub-Engine Registry
 //
 // API cho Sub-Engines:
 //   window.AppCore.registerSubEngine(name)
@@ -614,6 +781,7 @@ class AppCore {
         if (!this._coreStarted) return;
         SystemLogger.log('WARN', 'Dừng AdBlock Core Script (Hot Toggle).');
         GenericScanner.stop();
+        AntiDetectGuard.stop();
         // Gửi tín hiệu dừng cho Sub-Engines nếu chúng đang chạy
         window.dispatchEvent(new CustomEvent('adblock:stop'));
         this._coreStarted = false;
@@ -626,7 +794,10 @@ class AppCore {
         SystemLogger.listenForLogRequests();
         SystemLogger.log('INFO', 'Khởi tạo AdBlock Core Script.');
         PopupBlocker.init();
-        
+
+        // AntiDetectGuard: diệt warning anti-adblock + unhide player. Chạy trên mọi domain đã bật.
+        AntiDetectGuard.init();
+
         // ManualBlocker chạy ĐỘC LẬP trên mọi website (kể cả có SubEngine hay không)
         ManualBlocker.init();
 

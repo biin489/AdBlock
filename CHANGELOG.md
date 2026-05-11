@@ -2,6 +2,17 @@
 
 All notable changes to the Absolute AdBlocker extension will be documented in this file.
 
+## [1.4.0] - 2026-05-11
+### Added
+- **Anti Trình Chặn Quảng Cáo**: Cải thiện khả năng tương thích trên một số nhóm trang web không thân thiện với extension chặn quảng cáo, giúp nội dung hiển thị bình thường khi extension đang bật.
+- **Page-Context Shim Layer**: Inject script vào page context ở `document_start` để chuẩn hoá môi trường biến môi trường mà trang web hay kiểm tra (`window.adsbygoogle`, `canRunAds`, `google_jobrunner`, v.v.).
+- **Library Shim**: Vô hiệu hoá các thư viện kiểm tra phía client phổ biến (`FuckAdBlock`, `BlockAdBlock`, `SniffAdBlock`) — callback `onNotDetected` luôn fire, `check()` luôn trả `false`.
+- **Network Probe Compatibility**: Override `fetch` và `XMLHttpRequest` cho các URL probe quen thuộc — trả về fake 200 empty response để tránh kích hoạt logic kiểm tra phía trang.
+- **Script Loader Compatibility**: Hook `appendChild`/`insertBefore` cho `<script>` mang URL probe — fake event `onload` thay vì để trang web phát hiện qua `onerror`.
+- **Bait Honeypot**: Tạo các phần tử mồi `<ins>` với class quen thuộc, kích thước `300x100px` ẩn ở `-9999px` — bypass kỹ thuật kiểm tra dựa trên `offsetHeight` của phần tử mồi.
+- **Warning Overlay Killer**: `MutationObserver` quét DOM tìm cụm từ cảnh báo (đa ngôn ngữ vi/en) → tự động xoá overlay + tháo lớp khoá scroll trên `html/body`.
+- **Player Auto-Restore**: Tự động hiển thị lại các player nội dung bị trang web ẩn (`#player`, `.jwplayer`, `.video-js`, `iframe[allowfullscreen]`, v.v.) để khôi phục trải nghiệm xem.
+
 ## [1.3.1] - 2026-03-29
 ### Added
 - Tính năng AI-smart Metadata cho Bảng Xoá quảng cáo thủ công: tự động phân tích và dịch danh tính nội dung (Hình ảnh, Video, Trích xuất văn bản) trước khi ẩn.

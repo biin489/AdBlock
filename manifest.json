@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extension_name__",
-  "version": "1.3.1",
-  "version_name": "1.3.1 Smart UI",
+  "version": "1.4.0",
+  "version_name": "1.4.0 Anti-Detect",
   "author": "Thi Phạm",
   "description": "__MSG_extension_description__",
   "default_locale": "vi",
@@ -67,7 +67,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["inject_blocker.js", "fb_stealth_bridge.js"],
+      "resources": ["inject_blocker.js", "fb_stealth_bridge.js", "anti_detect_inject.js"],
       "matches": ["<all_urls>"]
     }
   ]

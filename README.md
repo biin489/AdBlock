@@ -2,7 +2,7 @@
 
 > Chrome Extension (Manifest V3) — Chặn quảng cáo thông minh trên Facebook và YouTube với chế độ Stealth Mode.
 
-![Version](https://img.shields.io/badge/version-1.3.1%20Smart%20UI-blue)
+![Version](https://img.shields.io/badge/version-1.4.0%20Anti--Detect-blue)
 ![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -14,6 +14,7 @@
 - 🎬 **Chặn quảng cáo YouTube** — Bỏ qua pre-roll, mid-roll và overlay ads
 - 🖱️ **Chặn Thủ công AI-Smart** — Trỏ chuột chọn vùng và ẩn vĩnh viễn. Tích hợp AI-smart Metadata tự động dịch khối HTML thành ngôn ngữ con người (Hình ảnh/Video/Văn bản) trên bảng quản lý hoàn tác cực thông minh.
 - 🥷 **Stealth Mode** — Inject script vào page context để bypass các cơ chế anti-adblock của Facebook
+- 🛡️ **Anti Trình Chặn Quảng Cáo** — Cải thiện khả năng tương thích trên các trang web không thân thiện với extension chặn quảng cáo, với 7 lớp shim: chuẩn hoá biến môi trường, fetch/XHR compatibility, bait honeypot, warning overlay killer, player auto-restore.
 - 📡 **DeclarativeNetRequest** — Chặn request mạng theo quy tắc tĩnh, hiệu suất cao, không cần quyền `webRequest`
 - 📊 **Thống kê realtime** — Popup hiển thị số lượng quảng cáo đã chặn theo phiên
 - 🌐 **Đa ngôn ngữ** — Hỗ trợ Tiếng Việt và English
@@ -24,19 +25,20 @@
 
 ```
 AdBlock/
-├── manifest.json           # Extension manifest (MV3)
-├── background.js           # Service worker — quản lý state & messaging
-├── content_core.js         # Content script lõi — chạy trên mọi trang
-├── inject_blocker.js       # Script inject vào page context
-├── fb_stealth_bridge.js    # Bridge giao tiếp stealth cho Facebook
-├── popup.html / popup.js   # Giao diện popup thống kê
-├── rules.json              # Quy tắc chặn network (declarativeNetRequest)
+├── manifest.json             # Extension manifest (MV3)
+├── background.js             # Service worker — quản lý state & messaging
+├── content_core.js           # Content script lõi — chạy trên mọi trang
+├── inject_blocker.js         # Script inject (page context) freeze window.open
+├── fb_stealth_bridge.js      # Bridge stealth cho Facebook (đọc React Fiber)
+├── anti_detect_inject.js     # Page-context shims chống anti-adblock detection
+├── popup.html / popup.js     # Giao diện popup thống kê
+├── rules.json                # Quy tắc chặn network (declarativeNetRequest)
 ├── engines/
-│   ├── facebook.js         # Engine phát hiện quảng cáo Facebook
-│   └── youtube.js          # Engine phát hiện quảng cáo YouTube
+│   ├── facebook.js           # Engine phát hiện quảng cáo Facebook
+│   └── youtube.js            # Engine phát hiện quảng cáo YouTube
 └── _locales/
-    ├── vi/messages.json    # Tiếng Việt
-    └── en/messages.json    # English
+    ├── vi/messages.json      # Tiếng Việt
+    └── en/messages.json      # English
 ```
 
 ---
